@@ -1,16 +1,72 @@
-# React + Vite
+# SpeechMatrix — Speech-to-Text App (Spring Boot)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A full-stack Speech-to-Text application built with Java 17 + Spring Boot 3 + React.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Layer       | Technology                          |
+|-------------|-------------------------------------|
+| Backend     | Java 17, Spring Boot 3.2            |
+| Security    | Spring Security + JWT               |
+| Database    | PostgreSQL + Spring Data JPA        |
+| STT API     | Deepgram / Google / AssemblyAI      |
+| Frontend    | React.js + Vite                     |
 
-## React Compiler
+## Quick Start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 1. Prerequisites
+- Java 17+
+- Maven 3.8+
+- PostgreSQL 14+
 
-## Expanding the ESLint configuration
+### 2. Database Setup
+```sql
+CREATE DATABASE sttdb;
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### 3. Configure
+Edit `src/main/resources/application.properties`:
+```properties
+spring.datasource.password=your_password
+app.stt.deepgram.api-key=your_key
+```
+
+### 4. Run
+```bash
+mvn spring-boot:run
+```
+
+Server starts at `http://localhost:8080`
+
+## API Endpoints
+
+| Method | Endpoint                  | Auth | Description          |
+|--------|---------------------------|------|----------------------|
+| POST   | /api/auth/register        | No   | Register user        |
+| POST   | /api/auth/login           | No   | Login & get token    |
+| POST   | /api/speech/upload        | Yes  | Upload audio file    |
+| GET    | /api/speech/history       | Yes  | Get all transcripts  |
+| GET    | /api/speech/{id}          | Yes  | Get one transcript   |
+| GET    | /api/speech/{id}/export   | Yes  | Download PDF/DOCX    |
+
+## Project Structure
+
+```
+src/main/java/com/sttapp/
+├── controller/     REST endpoints
+├── service/        Business logic
+├── repository/     JPA data access
+├── model/          JPA entities
+├── dto/            Request/response objects
+├── config/         Spring config (Security, CORS)
+├── security/       JWT filter & utilities
+└── exception/      Error handling
+```
+
+## Progress
+
+- [x] Day 1 — Project setup, folder structure, entities, auth skeleton
+- [ ] Day 2 — Database & JPA complete
+- [ ] Day 3 — Auth API (register/login)
+- [ ] Day 7 — Audio upload endpoint
+- [ ] Day 8 — STT API integration
