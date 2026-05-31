@@ -1,0 +1,241 @@
+{
+  "info": {
+    "name": "SpeechMatrix â€” Day 7 Upload Tests",
+    "description": "Test POST /api/speech/upload.\n\nSetup:\n1. Start app: mvn spring-boot:run\n2. Run request 01 to get a token\n3. All upload tests use form-data â€” set the file field to a real audio file\n4. Run requests 02â€“08 in order",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",         "value": "http://localhost:8080" },
+    { "key": "token",           "value": "" },
+    { "key": "transcriptionId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+
+    {
+      "name": "01 Login",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "if (pm.response.code === 200) {",
+          "    pm.collectionVariables.set('token', pm.response.json().token);",
+          "    pm.test('Token saved', () => pm.expect(pm.response.json().token).to.exist);",
+          "}"
+        ]}
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/login" },
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"arjun@sttapp.com\",\n  \"password\": \"SecurePass1\"\n}" }
+      }
+    },
+
+    {
+      "name": "02 Upload MP3 (happy path)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 201', () => pm.response.to.have.status(201));",
+          "pm.test('success is true', () => pm.expect(pm.response.json().success).to.be.true);",
+          "const data = pm.response.json().data;",
+          "pm.test('Has transcript', () => pm.expect(data.transcript).to.be.a('string'));",
+          "pm.test('Status is done', () => pm.expect(data.status).to.eql('done'));",
+          "pm.test('Has confidence score', () => pm.expect(data.confidenceScore).to.be.above(0));",
+          "pm.test('Has wordCount', () => pm.expect(data.wordCount).to.be.above(0));",
+          "pm.test('Has durationSeconds', () => pm.expect(data.durationSeconds).to.be.above(0));",
+          "pm.collectionVariables.set('transcriptionId', data.id);",
+          "console.log('Transcript preview:', data.transcript.substring(0, 80));"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file",     "type": "file",  "src": "/path/to/your/audio.mp3",
+              "description": "â† CHANGE THIS to a real .mp3 file on your machine" },
+            { "key": "language", "type": "text",  "value": "en-US" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "03 Upload with speakerCount=2",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 201', () => pm.response.to.have.status(201));",
+          "const data = pm.response.json().data;",
+          "console.log('Speaker count detected:', data.speakerCount);"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file",         "type": "file", "src": "/path/to/meeting.mp3" },
+            { "key": "language",     "type": "text", "value": "en-US" },
+            { "key": "speakerCount", "type": "text", "value": "2" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "04 Upload Hindi audio",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 201 or 422', () =>",
+          "    pm.expect(pm.response.code).to.be.oneOf([201, 422]));",
+          "if (pm.response.code === 201) {",
+          "    console.log('Hindi transcript:', pm.response.json().data.transcript);",
+          "}"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file",     "type": "file", "src": "/path/to/hindi.mp3" },
+            { "key": "language", "type": "text", "value": "hi-IN" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "05 Upload EXE disguised as MP3 (expect 422)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 422 â€” invalid audio rejected', () =>",
+          "    pm.response.to.have.status(422));",
+          "pm.test('Error message explains the problem', () =>",
+          "    pm.expect(pm.response.json().message).to.be.a('string'));"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file", "type": "file", "src": "/path/to/notaudio.exe",
+              "description": "â† rename any .exe to .mp3 to test magic byte check" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "06 Upload PDF as WAV (expect 422)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 422', () => pm.response.to.have.status(422));"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file", "type": "file", "src": "/path/to/document.wav",
+              "description": "â† rename a PDF to .wav" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "07 Upload TXT file (expect 422 â€” bad extension)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 422', () => pm.response.to.have.status(422));",
+          "pm.test('Error mentions Unsupported', () =>",
+          "    pm.expect(pm.response.json().message).to.include('Unsupported'));"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "file", "type": "file", "src": "/path/to/notes.txt" }
+          ]
+        }
+      }
+    },
+
+    {
+      "name": "08 GET uploaded transcript by ID",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "const data = pm.response.json().data;",
+          "pm.test('Transcript text present', () =>",
+          "    pm.expect(data.transcript).to.be.a('string'));",
+          "pm.test('Status is done', () =>",
+          "    pm.expect(data.status).to.eql('done'));"
+        ]}
+      }],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/speech/{{transcriptionId}}" }
+      }
+    },
+
+    {
+      "name": "09 GET history â€” uploaded file appears",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "const data = pm.response.json().data;",
+          "pm.test('At least 1 item in history', () =>",
+          "    pm.expect(data.totalElements).to.be.above(0));",
+          "pm.test('First item has transcriptPreview', () =>",
+          "    pm.expect(data.content[0].transcriptPreview).to.exist);"
+        ]}
+      }],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/speech/history?page=0&size=5" }
+      }
+    },
+
+    {
+      "name": "10 DELETE transcription",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "pm.test('success is true', () => pm.expect(pm.response.json().success).to.be.true);",
+          "pm.test('Deletion message present', () =>",
+          "    pm.expect(pm.response.json().message).to.include('deleted'));"
+        ]}
+      }],
+      "request": {
+        "method": "DELETE",
+        "url": { "raw": "{{baseUrl}}/api/speech/{{transcriptionId}}" }
+      }
+    }
+
+  ]
+}

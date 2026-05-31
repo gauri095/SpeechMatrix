@@ -1,0 +1,176 @@
+{
+  "info": {
+    "name": "SpeechMatrix â€” Day 6 STT Provider Tests",
+    "description": "Test your STT provider connection.\n\nBefore running:\n1. Start the app: mvn spring-boot:run\n2. Login via POST /api/auth/login to get a token\n3. Add token to the collection Auth â†’ Bearer Token\n4. Run requests in order",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token",   "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+
+    {
+      "name": "1 â€” Login (get token first)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "if (pm.response.code === 200) {",
+          "    pm.collectionVariables.set('token', pm.response.json().token);",
+          "    pm.test('Token saved', () => pm.expect(pm.response.json().token).to.exist);",
+          "}"
+        ]}
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/login" },
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"arjun@sttapp.com\",\n  \"password\": \"SecurePass1\"\n}" }
+      }
+    },
+
+    {
+      "name": "2 â€” STT Config (check active provider)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "const r = pm.response.json();",
+          "pm.test('Has activeProvider', () => pm.expect(r.activeProvider).to.be.a('string'));",
+          "pm.test('Has isConfigured', () => pm.expect(r.isConfigured).to.be.a('boolean'));",
+          "console.log('Active provider:', r.activeProvider);",
+          "console.log('Is configured:', r.isConfigured);",
+          "console.log('API key:', r.deepgramApiKey);"
+        ]}
+      }],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/dev/stt/config" }
+      }
+    },
+
+    {
+      "name": "3 â€” STT Ping (live connection test)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200 or 503', () =>",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 503]));",
+          "const r = pm.response.json();",
+          "pm.test('Has connected field', () =>",
+          "    pm.expect(r.connected).to.be.a('boolean'));",
+          "pm.test('Has latencyMs', () =>",
+          "    pm.expect(r.latencyMs).to.be.a('number'));",
+          "if (r.connected) {",
+          "    pm.test('Latency under 10s', () =>",
+          "        pm.expect(r.latencyMs).to.be.below(10000));",
+          "    console.log('âœ… Connected! Latency:', r.latencyMs + 'ms');",
+          "} else {",
+          "    console.log('âŒ Not connected:', r.message);",
+          "}"
+        ]}
+      }],
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/dev/stt/ping" }
+      }
+    },
+
+    {
+      "name": "4 â€” Transcribe public URL (Deepgram sample)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "const r = pm.response.json();",
+          "pm.test('Has transcript', () => pm.expect(r.transcript).to.be.a('string'));",
+          "pm.test('Transcript is not empty', () =>",
+          "    pm.expect(r.transcript.length).to.be.above(0));",
+          "pm.test('Has confidence score', () =>",
+          "    pm.expect(r.confidence).to.be.a('number'));",
+          "pm.test('Has word count', () =>",
+          "    pm.expect(r.wordCount).to.be.a('number').and.above(0));",
+          "console.log('Transcript:', r.transcript.substring(0, 100) + '...');",
+          "console.log('Confidence:', r.confidence);",
+          "console.log('Words:', r.wordCount);"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/dev/stt/test-url" },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav\",\n  \"language\": \"en-US\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "5 â€” Transcribe NASA sample (longer audio)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "const r = pm.response.json();",
+          "pm.test('Transcript has 50+ words', () =>",
+          "    pm.expect(r.wordCount).to.be.above(50));",
+          "console.log('Processing time:', r.processingMs + 'ms');"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/dev/stt/test-url" },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"https://static.deepgram.com/examples/interview_speech-analytics.wav\",\n  \"language\": \"en-US\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "6 â€” Transcribe Hindi audio (multi-language test)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200', () => pm.response.to.have.status(200));",
+          "const r = pm.response.json();",
+          "pm.test('Has transcript', () => pm.expect(r.transcript).to.exist);",
+          "console.log('Hindi transcript:', r.transcript);"
+        ]}
+      }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/dev/stt/test-url" },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"https://static.deepgram.com/examples/Bueller-Life-moves-pretty-fast.wav\",\n  \"language\": \"hi-IN\"\n}"
+        }
+      }
+    },
+
+    {
+      "name": "7 â€” Ping without token (should still work â€” dev route)",
+      "event": [{
+        "listen": "test",
+        "script": { "exec": [
+          "pm.test('Status 200 or 503 (no auth required)', () =>",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 503]));"
+        ]}
+      }],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/api/dev/stt/ping" }
+      }
+    }
+
+  ]
+}

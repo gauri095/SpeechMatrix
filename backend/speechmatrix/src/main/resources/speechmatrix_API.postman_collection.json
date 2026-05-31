@@ -1,0 +1,168 @@
+{
+  "info": {
+    "name": "SpeechMatrix API",
+    "description": "Speech-to-Text App â€” Spring Boot backend\nBase URL: http://localhost:8080\n\nWorkflow:\n1. Register or Login to get a JWT token\n2. Copy the token value from the response\n3. In Postman, go to the collection â†’ Authorization â†’ Bearer Token â†’ paste token\n4. All other requests inherit the token automatically",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "token",   "value": "",                      "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+
+    {
+      "name": "Auth",
+      "item": [
+
+        {
+          "name": "Register",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const res = pm.response.json();",
+                "if (res.token) {",
+                "    pm.collectionVariables.set('token', res.token);",
+                "    pm.test('Token saved to collection variable', () => pm.expect(res.token).to.be.a('string'));",
+                "}",
+                "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                "pm.test('Response has user id', () => pm.expect(res.id).to.be.a('number'));",
+                "pm.test('Response has email', () => pm.expect(res.email).to.exist);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Arjun Mehta\",\n  \"email\": \"arjun@sttapp.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "description": "Register a new user. Automatically saves the returned JWT to {{token}}."
+          }
+        },
+
+        {
+          "name": "Register â€” duplicate email (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Arjun Mehta\",\n  \"email\": \"arjun@sttapp.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Register â€” missing fields (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bad@test.com\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Login",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "const res = pm.response.json();",
+                "if (res.token) pm.collectionVariables.set('token', res.token);",
+                "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                "pm.test('Token returned', () => pm.expect(res.token).to.be.a('string'));",
+                "pm.test('Type is Bearer', () => pm.expect(res.type).to.equal('Bearer'));"
+              ]
+            }
+          }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"arjun@sttapp.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Login â€” wrong password (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"arjun@sttapp.com\",\n  \"password\": \"wrongpass\"\n}"
+            }
+          }
+        },
+
+        {
+          "name": "Get Profile (auth required)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                "const res = pm.response.json();",
+                "pm.test('Has totalTranscriptions', () => pm.expect(res.totalTranscriptions).to.be.a('number'));",
+                "pm.test('Has totalWords', () => pm.expect(res.totalWords).to.exist);"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/profile", "host": ["{{baseUrl}}"], "path": ["api","auth","profile"] },
+            "description": "Requires a valid Bearer token. Uses {{token}} automatically."
+          }
+        },
+
+        {
+          "name": "Me â€” token check (auth required)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api","auth","me"] }
+          }
+        },
+
+        {
+          "name": "Get Profile â€” no token (expect 401)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/profile", "host": ["{{baseUrl}}"], "path": ["api","auth","profile"] }
+          }
+        }
+
+      ]
+    },
+
+    {
+      "name": "Speech (stub â€” Week 2)",
+      "item": [
+        {
+          "name": "Ping speech endpoint",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/speech/ping", "host": ["{{baseUrl}}"], "path": ["api","speech","ping"] }
+          }
+        }
+      ]
+    }
+
+  ]
+}

@@ -1,0 +1,352 @@
+{
+  "info": {
+    "name": "SpeechMatrix STT — Day 10 Complete API Suite",
+    "description": "Full API test collection covering auth, speech, error handling, and diagnostics.\n\nSetup:\n1. Start: mvn spring-boot:run\n2. Run folder '0 — Setup' to register + get token (auto-saved)\n3. Run any folder in order\n\nAll token management is automatic via pre-request scripts.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl",  "value": "http://localhost:8080" },
+    { "key": "token",    "value": "" },
+    { "key": "txId",     "value": "" },
+    { "key": "email",    "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}" }]
+  },
+  "item": [
+
+    {
+      "name": "0 — Setup (run first)",
+      "item": [
+        {
+          "name": "Register + save token",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "const ts = Date.now();",
+              "const email = `user_${ts}@sttapp.com`;",
+              "pm.collectionVariables.set('email', email);",
+              "pm.request.body.raw = JSON.stringify({name:'Test User',email,password:'TestPass1'});"
+            ]}},
+            { "listen": "test", "script": { "exec": [
+              "pm.test('Register 201', () => pm.response.to.have.status(201));",
+              "const r = pm.response.json();",
+              "if (r.token) pm.collectionVariables.set('token', r.token);",
+              "pm.test('Token saved', () => pm.expect(pm.collectionVariables.get('token')).to.not.be.empty);"
+            ]}}
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/register" },
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "1 — Auth",
+      "item": [
+        {
+          "name": "Register — weak password (expect 400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400 Validation Failed', () => pm.response.to.have.status(400));",
+            "pm.test('Has password field error', () => pm.expect(pm.response.json().details.password).to.exist);",
+            "pm.test('Has timestamp', () => pm.expect(pm.response.json().timestamp).to.exist);",
+            "pm.test('Has path', () => pm.expect(pm.response.json().path).to.exist);"
+          ]}}],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/register" },
+            "body": { "mode": "raw", "raw": "{\"name\":\"Test\",\"email\":\"x@x.com\",\"password\":\"abc\"}" }
+          }
+        },
+        {
+          "name": "Login — correct credentials",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Has token', () => { const r=pm.response.json(); pm.expect(r.token).to.be.a('string'); pm.collectionVariables.set('token', r.token); });",
+            "pm.test('X-Request-ID in response', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.exist);",
+            "pm.test('expiresInMs = 86400000', () => pm.expect(pm.response.json().expiresInMs).to.eql(86400000));"
+          ]}}],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login" },
+            "body": { "mode": "raw", "raw": "{\"email\":\"{{email}}\",\"password\":\"TestPass1\"}" }
+          }
+        },
+        {
+          "name": "Login — wrong password (expect 401 + hint)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+            "pm.test('Has hint', () => pm.expect(pm.response.json().hint).to.be.a('string'));",
+            "pm.test('No token', () => pm.expect(pm.response.json().token).to.be.undefined);"
+          ]}}],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/login" },
+            "body": { "mode": "raw", "raw": "{\"email\":\"{{email}}\",\"password\":\"WrongPass99\"}" }
+          }
+        },
+        {
+          "name": "Profile (auth required)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const r = pm.response.json();",
+            "pm.test('Has all profile fields', () => { pm.expect(r.id).to.exist; pm.expect(r.email).to.exist; pm.expect(r.totalTranscriptions).to.be.a('number'); });"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/auth/profile" } }
+        },
+        {
+          "name": "Profile — no token (expect 401 JSON, not HTML)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401 JSON response', () => {",
+            "  pm.response.to.have.status(401);",
+            "  pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+            "});",
+            "pm.test('Has status field', () => pm.expect(pm.response.json().status).to.eql(401));"
+          ]}}],
+          "request": {
+            "auth": { "type": "noauth" }, "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/profile" }
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Success message', () => pm.expect(pm.response.json().message).to.include('successfully'));"
+          ]}}],
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/api/auth/logout" } }
+        }
+      ]
+    },
+
+    {
+      "name": "2 — Speech History & Search",
+      "item": [
+        {
+          "name": "GET /history — default (page 0, size 10)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const d = pm.response.json().data;",
+            "pm.test('Has pagination metadata', () => {",
+            "  pm.expect(d.page).to.be.a('number');",
+            "  pm.expect(d.size).to.be.a('number');",
+            "  pm.expect(d.totalElements).to.be.a('number');",
+            "  pm.expect(d.totalPages).to.be.a('number');",
+            "  pm.expect(d.first).to.be.a('boolean');",
+            "  pm.expect(d.last).to.be.a('boolean');",
+            "});",
+            "pm.test('Has sort info', () => { pm.expect(d.sort).to.exist; pm.expect(d.sort.field).to.exist; });",
+            "pm.test('X-Request-ID present', () => pm.expect(pm.response.headers.get('X-Request-ID')).to.exist);"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/history" } }
+        },
+        {
+          "name": "GET /history?status=done",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const items = pm.response.json().data.content;",
+            "if (items.length > 0) {",
+            "  pm.test('All items have status=done', () => items.forEach(i => pm.expect(i.status).to.eql('done')));",
+            "}"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/history?status=done" } }
+        },
+        {
+          "name": "GET /history?size=200 (capped at 50)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Size capped at 50', () => pm.expect(pm.response.json().data.size).to.be.at.most(50));"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/history?size=200" } }
+        },
+        {
+          "name": "GET /search?q=spring",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const d = pm.response.json().data;",
+            "pm.test('Has query echo', () => pm.expect(d.query).to.eql('spring'));",
+            "pm.test('Content is array', () => pm.expect(d.content).to.be.an('array'));",
+            "if (d.content.length > 0) {",
+            "  pm.test('First result has highlightedPreview', () => pm.expect(d.content[0].highlightedPreview).to.exist);",
+            "}"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/search?q=spring" } }
+        },
+        {
+          "name": "GET /search?q=a (too short — expect 400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/search?q=a" } }
+        },
+        {
+          "name": "GET /stats",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const d = pm.response.json().data;",
+            "pm.test('Has all stat fields', () => {",
+            "  ['totalTranscriptions','doneCount','failedCount','pendingCount',",
+            "   'totalWords','totalDurationSeconds','avgConfidence'].forEach(k => {",
+            "    pm.expect(d[k], k).to.exist;",
+            "  });",
+            "});",
+            "pm.test('languages is an array', () => pm.expect(d.languages).to.be.an('array'));"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/stats" } }
+        },
+        {
+          "name": "GET /speech/99999 (expect 404)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+            "const r = pm.response.json();",
+            "pm.test('Has status 404', () => pm.expect(r.status).to.eql(404));",
+            "pm.test('Message mentions id', () => pm.expect(r.message).to.include('99999'));",
+            "pm.test('Has path', () => pm.expect(r.path).to.eql('/api/speech/99999'));"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/speech/99999" } }
+        }
+      ]
+    },
+
+    {
+      "name": "3 — Upload & Error Cases",
+      "item": [
+        {
+          "name": "Upload TXT (expect 422 + hint)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+            "pm.test('Has hint about formats', () => pm.expect(pm.response.json().hint).to.include('MP3'));",
+            "pm.test('Has path', () => pm.expect(pm.response.json().path).to.exist);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "/tmp/test.txt",
+                  "description": "← create a test.txt on your machine to test this" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload no file (expect 400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+            "body": { "mode": "formdata", "formdata": [{ "key": "language", "value": "en-US", "type": "text" }] }
+          }
+        },
+        {
+          "name": "POST /record (expect 501 Not Implemented)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('501 Not Implemented', () => pm.response.to.have.status(501));",
+            "pm.test('Has hint about timeline', () => pm.expect(pm.response.json().hint).to.exist);"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/octet-stream" }],
+            "url": { "raw": "{{baseUrl}}/api/speech/record" },
+            "body": { "mode": "raw", "raw": "AAAA" }
+          }
+        },
+        {
+          "name": "DELETE /history (expect 405 + allowed methods)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('405 Method Not Allowed', () => pm.response.to.have.status(405));",
+            "pm.test('Hint lists allowed methods', () => pm.expect(pm.response.json().hint).to.include('GET'));"
+          ]}}],
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/api/speech/history" } }
+        },
+        {
+          "name": "POST /login with JSON to multipart upload (expect 415)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('415 Unsupported Media Type', () => pm.response.to.have.status(415));",
+            "pm.test('Hint mentions multipart', () => pm.expect(pm.response.json().hint).to.include('multipart'));"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/api/speech/upload" },
+            "body": { "mode": "raw", "raw": "{\"file\":\"fake\"}" }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "4 — Diagnostics (dev only)",
+      "item": [
+        {
+          "name": "STT Config",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Has activeProvider', () => pm.expect(pm.response.json().activeProvider).to.exist);",
+            "pm.test('API key is masked', () => {",
+            "  const key = pm.response.json().deepgramApiKey;",
+            "  if (key && key !== '(not set)') pm.expect(key).to.include('...');",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/dev/stt/config" } }
+        },
+        {
+          "name": "STT Ping",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 or 503', () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));",
+            "const r = pm.response.json();",
+            "pm.test('Has connected field', () => pm.expect(r.connected).to.be.a('boolean'));",
+            "pm.test('Has latencyMs', () => pm.expect(r.latencyMs).to.be.a('number'));",
+            "if (r.connected) { console.log('✅ Latency:', r.latencyMs + 'ms'); }",
+            "else { console.log('❌ Not connected:', r.message); }"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/dev/stt/ping" } }
+        },
+        {
+          "name": "BCrypt analyze",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const r = pm.response.json();",
+            "pm.test('Hashes differ (random salt)', () => pm.expect(r.hashesAreDifferent).to.be.true);",
+            "pm.test('Hash length 60', () => pm.expect(r.hashLength).to.eql(60));",
+            "pm.test('Strength 12', () => pm.expect(r.bcryptStrength).to.eql(12));"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/dev/bcrypt?password=TestPass1" } }
+        },
+        {
+          "name": "Token inspect (requires token)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const r = pm.response.json();",
+            "pm.test('Token still valid', () => pm.expect(r.remainingMs).to.be.above(0));",
+            "pm.test('TTL is 24h', () => pm.expect(r.configuredTtlMs).to.eql(86400000));"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/dev/token/inspect" } }
+        },
+        {
+          "name": "Security routes map",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Has public + protected routes', () => {",
+            "  pm.expect(pm.response.json().publicRoutes).to.be.an('array');",
+            "  pm.expect(pm.response.json().protectedRoutes).to.be.an('array');",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/api/dev/security/routes" } }
+        }
+      ]
+    }
+
+  ]
+}
